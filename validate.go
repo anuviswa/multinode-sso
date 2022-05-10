@@ -2,6 +2,7 @@ package saml2
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/russellhaering/gosaml2/types"
@@ -46,6 +47,7 @@ const (
 //VerifyAssertionConditions inspects an assertion element and makes sure that
 //all SAML2 contracts are upheld.
 func (sp *SAMLServiceProvider) VerifyAssertionConditions(assertion *types.Assertion) (*WarningInfo, error) {
+	fmt.Println("anudebug: VerifyAssertionConditions")
 	warningInfo := &WarningInfo{}
 	now := sp.Clock.Now()
 
@@ -84,9 +86,22 @@ func (sp *SAMLServiceProvider) VerifyAssertionConditions(assertion *types.Assert
 		matched := false
 
 		for _, audience := range audienceRestriction.Audiences {
-			if audience.Value == sp.AudienceURI {
-				matched = true
-				break
+			if len(sp.MultiNodeAudienceURI) == 0 {
+				fmt.Println("SP Audience:", sp.AudienceURI)
+				if audience.Value == sp.AudienceURI {
+					matched = true
+					break
+				}
+			} else {
+				// Assumes that multiple audiences will be a comma separated list.
+				multiAudience := strings.Split(sp.MultiNodeAudienceURI, ",")
+				for _, audienceURI := range multiAudience {
+					fmt.Println("MultiNode SP Audience:", audienceURI)
+					if audience.Value == audienceURI {
+						matched = true
+						break
+					}
+				}
 			}
 		}
 

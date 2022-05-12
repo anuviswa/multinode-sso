@@ -175,7 +175,36 @@ func (sp *SAMLServiceProvider) MetadataWithSLO(validityHours int64) (*types.Enti
 		validityHours = int64(time.Hour * 24 * 7)
 	}
 
-	return &types.EntityDescriptor{
+	fmt.Println("gosamlog: MetadataWithSLO")
+	var acs []types.IndexedEndpoint
+
+	if len(sp.MultiAssertionConsumerServiceURLs) == 0 {
+		fmt.Println("gosamlog: Only one ACS URL:", sp.AssertionConsumerServiceURL)
+		acs = []types.IndexedEndpoint{{
+			Binding:  BindingHttpPost,
+			Location: sp.AssertionConsumerServiceURL,
+			Index:    1,
+		}}
+	} else {
+		fmt.Println("gosamlog: Multi ACS URL:", sp.MultiAssertionConsumerServiceURLs)
+		// Assumes that multiple audiences will be a comma separated list.
+		acsurls := strings.Split(sp.MultiAssertionConsumerServiceURLs, ",")
+		indexCount := 0
+		for _, url := range acsurls {
+			indexCount = indexCount + 1
+			fmt.Println("gosamlog: MultiNode ACS URL:", url)
+			tmp := types.IndexedEndpoint{
+				Binding:  BindingHttpPost,
+				Location: url,
+				Index:    indexCount,
+			}
+			acs = append(acs, tmp)
+		}
+
+		fmt.Println("gosamlog: ACS value: %#v", acs)
+	}
+
+	metadata := types.EntityDescriptor{
 		ValidUntil: time.Now().UTC().Add(time.Duration(validityHours)), // default 7 days
 		EntityID:   sp.ServiceProviderIssuer,
 		SPSSODescriptor: &types.SPSSODescriptor{
@@ -219,7 +248,16 @@ func (sp *SAMLServiceProvider) MetadataWithSLO(validityHours int64) (*types.Enti
 				Location: sp.ServiceProviderSLOURL,
 			}},
 		},
-	}, nil
+	}
+
+	fmt.Println("gosamlog: Metadata before: %#v", metadata)
+	if metadata.SPSSODescriptor != nil {
+		fmt.Println("gosamlog: Adding ACS to metadata")
+		metadata.SPSSODescriptor.AssertionConsumerServices = acs
+	}
+
+	fmt.Println("gosamlog: Metadata after adding acs: %#v", metadata)
+	return &metadata, nil
 }
 
 func (sp *SAMLServiceProvider) GetEncryptionKey() dsig.X509KeyStore {

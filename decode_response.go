@@ -7,6 +7,7 @@ import (
 	"crypto/x509"
 	"encoding/base64"
 	"fmt"
+	"strings"
 	"io/ioutil"
 
 	"encoding/xml"
@@ -26,7 +27,18 @@ func (sp *SAMLServiceProvider) validationContext() *dsig.ValidationContext {
 // validateResponseAttributes validates a SAML Response's tag and attributes. It does
 // not inspect child elements of the Response at all.
 func (sp *SAMLServiceProvider) validateResponseAttributes(response *types.Response) error {
-	if response.Destination != "" && response.Destination != sp.AssertionConsumerServiceURL {
+	matched := false
+	multiAudience := strings.Split(sp.MultiNodeAudienceURI, ",")
+	for _, host := range multiAudience {
+		fmt.Println("gosamlog: MultiNode SP Audience:", host)
+		if response.Destination == "https://" + host + ":443" + "/ACS.saml2" {
+			fmt.Println("gosamlog: Matched destination.")
+			matched = true
+			break
+		}
+	}
+
+	if response.Destination != "" && response.Destination != sp.AssertionConsumerServiceURL && !matched {
 		return ErrInvalidValue{
 			Key:      DestinationAttr,
 			Expected: sp.AssertionConsumerServiceURL,

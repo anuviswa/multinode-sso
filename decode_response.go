@@ -31,7 +31,8 @@ func (sp *SAMLServiceProvider) validateResponseAttributes(response *types.Respon
 	multiAudience := strings.Split(sp.MultiNodeAudienceURI, ",")
 	for _, host := range multiAudience {
 		fmt.Println("gosamlog: MultiNode SP Audience:", host)
-		if response.Destination == "https://" + host + ":443" + "/ACS.saml2" {
+		spAcsUrl = "https://" + host + ":443" + "/sp/ACS.saml2"
+		if response.Destination == spAcsUrl {
 			fmt.Println("gosamlog: Matched destination.")
 			matched = true
 			break

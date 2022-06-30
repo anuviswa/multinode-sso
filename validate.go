@@ -217,7 +217,19 @@ func (sp *SAMLServiceProvider) Validate(response *types.Response) error {
 			return ErrMissingElement{Tag: SubjectConfirmationDataTag}
 		}
 
-		if subjectConfirmationData.Recipient != sp.AssertionConsumerServiceURL {
+		matched := false
+		multiAudience := strings.Split(sp.MultiNodeAudienceURI, ",")
+		for _, host := range multiAudience {
+			fmt.Println("gosamlog: MultiNode SP Audience:", host)
+			spAcsUrl := "https://" + host + ":443" + "/sp/ACS.saml2"
+			if subjectConfirmationData.Recipient == spAcsUrl {
+				fmt.Println("gosamlog: Matched recipient.")
+				matched = true
+				break
+			}
+		}
+
+		if subjectConfirmationData.Recipient != sp.AssertionConsumerServiceURL && !matched {
 			return ErrInvalidValue{
 				Key:      RecipientAttr,
 				Expected: sp.AssertionConsumerServiceURL,

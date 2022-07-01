@@ -86,7 +86,8 @@ func (sp *SAMLServiceProvider) VerifyAssertionConditions(assertion *types.Assert
 		matched := false
 
 		for _, audience := range audienceRestriction.Audiences {
-			fmt.Println("gosamlog: audience.Value:", audience.Value)
+			fmt.Println("gosamlog: audience.Value in assertion:", audience.Value)
+			fmt.Println("gosamlog: audience in SP Audience URI:", sp.AudienceURI)
 			if len(sp.MultiNodeAudienceURI) == 0 {
 				fmt.Println("SP Audience:", sp.AudienceURI)
 				if audience.Value == sp.AudienceURI {

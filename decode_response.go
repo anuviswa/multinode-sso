@@ -7,7 +7,6 @@ import (
 	"crypto/x509"
 	"encoding/base64"
 	"fmt"
-	"strings"
 	"io/ioutil"
 
 	"encoding/xml"
@@ -28,12 +27,8 @@ func (sp *SAMLServiceProvider) validationContext() *dsig.ValidationContext {
 // not inspect child elements of the Response at all.
 func (sp *SAMLServiceProvider) validateResponseAttributes(response *types.Response) error {
 	matched := false
-	multiAudience := strings.Split(sp.MultiNodeAudienceURI, ",")
-	for _, host := range multiAudience {
-		fmt.Println("gosamlog: MultiNode SP Audience:", host)
-		spAcsUrl := "https://" + host + ":443" + "/sp/ACS.saml2"
-		if response.Destination == spAcsUrl {
-			fmt.Println("gosamlog: Matched destination.")
+	for _, configuredAcsUrl := range sp.MultiAssertionConsumerServiceURLs {
+		if response.Destination == configuredAcsUrl {
 			matched = true
 			break
 		}

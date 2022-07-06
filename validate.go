@@ -2,7 +2,6 @@ package saml2
 
 import (
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/russellhaering/gosaml2/types"
@@ -47,7 +46,6 @@ const (
 //VerifyAssertionConditions inspects an assertion element and makes sure that
 //all SAML2 contracts are upheld.
 func (sp *SAMLServiceProvider) VerifyAssertionConditions(assertion *types.Assertion) (*WarningInfo, error) {
-	fmt.Println("gosamlog: VerifyAssertionConditions")
 	warningInfo := &WarningInfo{}
 	now := sp.Clock.Now()
 
@@ -86,31 +84,13 @@ func (sp *SAMLServiceProvider) VerifyAssertionConditions(assertion *types.Assert
 		matched := false
 
 		for _, audience := range audienceRestriction.Audiences {
-			fmt.Println("gosamlog: audience.Value in assertion:", audience.Value)
-			fmt.Println("gosamlog: audience in SP Audience URI:", sp.AudienceURI)
-			if len(sp.MultiNodeAudienceURI) == 0 {
-				fmt.Println("SP Audience:", sp.AudienceURI)
-				if audience.Value == sp.AudienceURI {
-					matched = true
-					break
-				}
-			} else {
-				fmt.Println("gosamlog: Configured audience:", sp.MultiNodeAudienceURI)
-				// Assumes that multiple audiences will be a comma separated list.
-				multiAudience := strings.Split(sp.MultiNodeAudienceURI, ",")
-				for _, audienceURI := range multiAudience {
-					fmt.Println("gosamlog: MultiNode SP Audience:", audienceURI)
-					if audience.Value == audienceURI {
-						fmt.Println("gosamlog: Matched audience.")
-						matched = true
-						break
-					}
-				}
+			if audience.Value == sp.AudienceURI {
+				matched = true
+				break
 			}
 		}
 
 		if !matched {
-			fmt.Println("gosamlog: No matching audience found.")
 			warningInfo.NotInAudience = true
 			break
 		}
@@ -219,12 +199,8 @@ func (sp *SAMLServiceProvider) Validate(response *types.Response) error {
 		}
 
 		matched := false
-		multiAudience := strings.Split(sp.MultiNodeAudienceURI, ",")
-		for _, host := range multiAudience {
-			fmt.Println("gosamlog: MultiNode SP Audience:", host)
-			spAcsUrl := "https://" + host + ":443" + "/sp/ACS.saml2"
-			if subjectConfirmationData.Recipient == spAcsUrl {
-				fmt.Println("gosamlog: Matched recipient.")
+		for _, configuredAcsUrl := range sp.MultiAssertionConsumerServiceURLs {
+			if subjectConfirmationData.Recipient == configuredAcsUrl {
 				matched = true
 				break
 			}

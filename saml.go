@@ -2,8 +2,6 @@ package saml2
 
 import (
 	"encoding/base64"
-	"fmt"
-	"strings"
 	"sync"
 	"time"
 
@@ -25,16 +23,16 @@ func (serr ErrSaml) Error() string {
 }
 
 type SAMLServiceProvider struct {
-	IdentityProviderSSOURL     string
+	IdentityProviderSSOURL string
 	IdentityProviderSSOBinding string
-	IdentityProviderSLOURL     string
+	IdentityProviderSLOURL string
 	IdentityProviderSLOBinding string
-	IdentityProviderIssuer     string
+	IdentityProviderIssuer string
 
-	AssertionConsumerServiceURL       string
-	MultiAssertionConsumerServiceURLs string
-	ServiceProviderSLOURL             string
-	ServiceProviderIssuer             string
+	AssertionConsumerServiceURL string
+	MultiAssertionConsumerServiceURLs []string
+	ServiceProviderSLOURL string
+	ServiceProviderIssuer       string
 
 	SignAuthnRequests              bool
 	SignAuthnRequestsAlgorithm     string
@@ -46,7 +44,6 @@ type SAMLServiceProvider struct {
 	// with identity providers it is recommended to leave this unset.
 	RequestedAuthnContext   *RequestedAuthnContext
 	AudienceURI             string
-	MultiNodeAudienceURI    string
 	IDPCertificateStore     dsig.X509CertificateStore
 	SPKeyStore              dsig.X509KeyStore // Required encryption key, default signing key
 	SPSigningKeyStore       dsig.X509KeyStore // Optional signing key
@@ -87,33 +84,26 @@ func (sp *SAMLServiceProvider) Metadata() (*types.EntityDescriptor, error) {
 
 	var acs []types.IndexedEndpoint
 
-	if len(sp.MultiAssertionConsumerServiceURLs) == 0 {
-		fmt.Println("gosamlog: Only one ACS URL:", sp.AssertionConsumerServiceURL)
-		acs = []types.IndexedEndpoint{{
-			Binding:  BindingHttpPost,
-			Location: sp.AssertionConsumerServiceURL,
-			Index:    1,
-		}}
+	if len(sp.MultiAssertionConsumerServiceURLs) <= 1 {
+	    acs = []types.IndexedEndpoint{{
+		Binding:  BindingHttpPost,
+		Location: sp.AssertionConsumerServiceURL,
+		Index:    1,
+            }}
 	} else {
-		fmt.Println("gosamlog: Multi ACS URL:", sp.MultiAssertionConsumerServiceURLs)
-		// Assumes that multiple audiences will be a comma separated list.
-		acsurls := strings.Split(sp.MultiAssertionConsumerServiceURLs, ",")
-		indexCount := 0
-		for _, url := range acsurls {
-			indexCount = indexCount + 1
-			fmt.Println("gosamlog: MultiNode ACS URL:", url)
-			tmp := types.IndexedEndpoint{
-				Binding:  BindingHttpPost,
-				Location: url,
-				Index:    indexCount,
-			}
-			acs = append(acs, tmp)
-		}
-
-		fmt.Println("gosamlog: ACS value: %#v", acs)
+	    // Multiple ACS URLs are configured.
+            indexCount := 0
+            for _, url := range sp.MultiAssertionConsumerServiceURLs {
+                tmp := types.IndexedEndpoint{
+		    Binding:  BindingHttpPost,
+		    Location: url,
+		    Index:    indexCount,
+                }
+                indexCount = indexCount + 1
+                acs = append(acs, tmp)
+            }
 	}
-
-	metadata := types.EntityDescriptor{
+	return &types.EntityDescriptor{
 		ValidUntil: time.Now().UTC().Add(time.Hour * 24 * 7), // 7 days
 		EntityID:   sp.ServiceProviderIssuer,
 		SPSSODescriptor: &types.SPSSODescriptor{
@@ -147,17 +137,9 @@ func (sp *SAMLServiceProvider) Metadata() (*types.EntityDescriptor, error) {
 					},
 				},
 			},
+			AssertionConsumerServices: acs,
 		},
-	}
-	fmt.Println("gosamlog: Metadata before: %#v", metadata)
-	if metadata.SPSSODescriptor != nil {
-		fmt.Println("Adding ACS to metadata")
-		metadata.SPSSODescriptor.AssertionConsumerServices = acs
-	}
-
-	fmt.Println("gosamlog: Metadata after adding acs: %#v", metadata)
-
-	return &metadata, nil
+	}, nil
 }
 
 func (sp *SAMLServiceProvider) MetadataWithSLO(validityHours int64) (*types.EntityDescriptor, error) {
@@ -170,94 +152,73 @@ func (sp *SAMLServiceProvider) MetadataWithSLO(validityHours int64) (*types.Enti
 		return nil, err
 	}
 
-	if validityHours <= 0 {
-		//By default let's keep it to 7 days.
-		validityHours = int64(time.Hour * 24 * 7)
-	}
+    if validityHours <= 0 {
+        //By default let's keep it to 7 days.
+        validityHours = int64(time.Hour * 24 * 7)
+    }
 
-	fmt.Println("gosamlog: MetadataWithSLO")
-	var acs []types.IndexedEndpoint
+    var acs []types.IndexedEndpoint
 
-	if len(sp.MultiAssertionConsumerServiceURLs) == 0 {
-		fmt.Println("gosamlog: Only one ACS URL:", sp.AssertionConsumerServiceURL)
-		acs = []types.IndexedEndpoint{{
+    if len(sp.MultiAssertionConsumerServiceURLs) <= 1 {
+	acs = []types.IndexedEndpoint{{
+		Binding:  BindingHttpPost,
+		Location: sp.AssertionConsumerServiceURL,
+		Index:    1,
+	}}
+    } else {
+	indexCount := 0
+	for _, url := range sp.MultiAssertionConsumerServiceURLs {
+		tmp := types.IndexedEndpoint{
 			Binding:  BindingHttpPost,
-			Location: sp.AssertionConsumerServiceURL,
-			Index:    1,
-		}}
-	} else {
-		fmt.Println("gosamlog: Multi ACS URL:", sp.MultiAssertionConsumerServiceURLs)
-		// Assumes that multiple audiences will be a comma separated list.
-		acsurls := strings.Split(sp.MultiAssertionConsumerServiceURLs, ",")
-		indexCount := 0
-		for _, url := range acsurls {
-			indexCount = indexCount + 1
-			fmt.Println("gosamlog: MultiNode ACS URL:", url)
-			tmp := types.IndexedEndpoint{
-				Binding:  BindingHttpPost,
-				Location: url,
-				Index:    indexCount,
-			}
-			acs = append(acs, tmp)
+			Location: url,
+			Index:    indexCount,
 		}
-
-		fmt.Println("gosamlog: ACS value: %#v", acs)
+		indexCount = indexCount + 1
+		acs = append(acs, tmp)
 	}
+    }
 
-	metadata := types.EntityDescriptor{
-		ValidUntil: time.Now().UTC().Add(time.Duration(validityHours)), // default 7 days
-		EntityID:   sp.ServiceProviderIssuer,
-		SPSSODescriptor: &types.SPSSODescriptor{
-			AuthnRequestsSigned:        sp.SignAuthnRequests,
-			WantAssertionsSigned:       !sp.SkipSignatureValidation,
-			ProtocolSupportEnumeration: SAMLProtocolNamespace,
-			KeyDescriptors: []types.KeyDescriptor{
-				{
-					Use: "signing",
-					KeyInfo: dsigtypes.KeyInfo{
-						X509Data: dsigtypes.X509Data{
-							X509Certificates: []dsigtypes.X509Certificate{dsigtypes.X509Certificate{
-								Data: base64.StdEncoding.EncodeToString(signingCertBytes),
-							}},
-						},
-					},
-				},
-				{
-					Use: "encryption",
-					KeyInfo: dsigtypes.KeyInfo{
-						X509Data: dsigtypes.X509Data{
-							X509Certificates: []dsigtypes.X509Certificate{dsigtypes.X509Certificate{
-								Data: base64.StdEncoding.EncodeToString(encryptionCertBytes),
-							}},
-						},
-					},
-					EncryptionMethods: []types.EncryptionMethod{
+    return &types.EntityDescriptor{
+        ValidUntil: time.Now().UTC().Add(time.Duration(validityHours)), // default 7 days
+        EntityID:   sp.ServiceProviderIssuer,
+        SPSSODescriptor: &types.SPSSODescriptor{
+            AuthnRequestsSigned:        sp.SignAuthnRequests,
+            WantAssertionsSigned:       !sp.SkipSignatureValidation,
+            ProtocolSupportEnumeration: SAMLProtocolNamespace,
+            KeyDescriptors: []types.KeyDescriptor{
+                {
+                    Use: "signing",
+                    KeyInfo: dsigtypes.KeyInfo{
+                        X509Data: dsigtypes.X509Data{
+                            X509Certificates: []dsigtypes.X509Certificate{dsigtypes.X509Certificate{
+                                Data: base64.StdEncoding.EncodeToString(signingCertBytes),
+                            }},
+                        },
+                    },
+                },
+                {
+                    Use: "encryption",
+                    KeyInfo: dsigtypes.KeyInfo{
+                        X509Data: dsigtypes.X509Data{
+                            X509Certificates: []dsigtypes.X509Certificate{dsigtypes.X509Certificate{
+                                Data: base64.StdEncoding.EncodeToString(encryptionCertBytes),
+                            }},
+                        },
+                    },
+                    EncryptionMethods: []types.EncryptionMethod{
 						{Algorithm: types.MethodAES128GCM, DigestMethod: nil},
 						{Algorithm: types.MethodAES128CBC, DigestMethod: nil},
 						{Algorithm: types.MethodAES256CBC, DigestMethod: nil},
-					},
-				},
-			},
-			AssertionConsumerServices: []types.IndexedEndpoint{{
-				Binding:  BindingHttpPost,
-				Location: sp.AssertionConsumerServiceURL,
-				Index:    1,
-			}},
-			SingleLogoutServices: []types.Endpoint{{
-				Binding:  BindingHttpPost,
-				Location: sp.ServiceProviderSLOURL,
-			}},
-		},
-	}
-
-	fmt.Println("gosamlog: Metadata before: %#v", metadata)
-	if metadata.SPSSODescriptor != nil {
-		fmt.Println("gosamlog: Adding ACS to metadata")
-		metadata.SPSSODescriptor.AssertionConsumerServices = acs
-	}
-
-	fmt.Println("gosamlog: Metadata after adding acs: %#v", metadata)
-	return &metadata, nil
+                    },
+                },
+            },
+            AssertionConsumerServices: acs,
+            SingleLogoutServices: []types.Endpoint{{
+                Binding:  BindingHttpPost,
+                Location: sp.ServiceProviderSLOURL,
+            }},
+        },
+    }, nil
 }
 
 func (sp *SAMLServiceProvider) GetEncryptionKey() dsig.X509KeyStore {

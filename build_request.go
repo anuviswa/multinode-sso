@@ -15,19 +15,18 @@ import (
 
 const issueInstantFormat = "2006-01-02T15:04:05Z"
 
-func (sp *SAMLServiceProvider) buildAuthnRequest(includeSig bool, acsUrls ...string) (*etree.Document, error) {
+func (sp *SAMLServiceProvider) buildAuthnRequest(includeSig bool, assertionConsumerServiceURL ...string) (*etree.Document, error) {
 	authnRequest := &etree.Element{
 		Space: "samlp",
 		Tag:   "AuthnRequest",
 	}
 
 	var acsUrl string
-	if len(acsUrls) > 0 {
-		acsUrl = acsUrls[0]
+	if len(assertionConsumerServiceURL) > 0 {
+		acsUrl = assertionConsumerServiceURL[0]
 	} else {
 		acsUrl = sp.AssertionConsumerServiceURL
 	}
-	fmt.Println("acsURL in buildAthnRequest: %s", acsUrl)
 
 	authnRequest.CreateAttr("xmlns:samlp", "urn:oasis:names:tc:SAML:2.0:protocol")
 	authnRequest.CreateAttr("xmlns:saml", "urn:oasis:names:tc:SAML:2.0:assertion")
@@ -77,7 +76,6 @@ func (sp *SAMLServiceProvider) buildAuthnRequest(includeSig bool, acsUrls ...str
 	} else {
 		doc.SetRoot(authnRequest)
 	}
-	fmt.Println("AthnRequest: %#v", authnRequest)
 
 	return doc, nil
 }

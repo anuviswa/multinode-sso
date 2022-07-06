@@ -198,15 +198,22 @@ func (sp *SAMLServiceProvider) Validate(response *types.Response) error {
 			return ErrMissingElement{Tag: SubjectConfirmationDataTag}
 		}
 
-		matched := false
-		for _, configuredAcsUrl := range sp.MultiAssertionConsumerServiceURLs {
-			if subjectConfirmationData.Recipient == configuredAcsUrl {
-				matched = true
-				break
+		recipientMatched := false
+		if len(sp.MultiAssertionConsumerServiceURLs) <= 1 {
+			if subjectConfirmationData.Recipient == sp.AssertionConsumerServiceURL {
+				recipientMatched = true
+			}
+		} else {
+			// Multiple ACS Urls configured. Match the recipient with any one of them.
+			for _, configuredAcsUrl := range sp.MultiAssertionConsumerServiceURLs {
+				if subjectConfirmationData.Recipient == configuredAcsUrl {
+					recipientMatched = true
+					break
+				}
 			}
 		}
 
-		if subjectConfirmationData.Recipient != sp.AssertionConsumerServiceURL && !matched {
+		if !recipientMatched {
 			return ErrInvalidValue{
 				Key:      RecipientAttr,
 				Expected: sp.AssertionConsumerServiceURL,

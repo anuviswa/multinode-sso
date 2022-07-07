@@ -28,7 +28,7 @@ func (sp *SAMLServiceProvider) validationContext() *dsig.ValidationContext {
 func (sp *SAMLServiceProvider) validateResponseAttributes(response *types.Response) error {
         destMatched := false
 	if len(sp.MultiAssertionConsumerServiceURLs) <= 1 {
-		if response.Destination == "" || response.Destination == sp.ServiceProviderSLOURL {
+		if response.Destination == "" || response.Destination == sp.AssertionConsumerServiceURL {
 			destMatched = true
 		}
 	} else {

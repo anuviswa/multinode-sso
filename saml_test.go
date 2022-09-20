@@ -11,14 +11,14 @@ import (
 	"encoding/pem"
 	"encoding/xml"
 	"fmt"
-	"io/ioutil"
-	"log"
-	"testing"
-
 	"github.com/beevik/etree"
 	"github.com/russellhaering/gosaml2/types"
 	dsig "github.com/russellhaering/goxmldsig"
 	"github.com/stretchr/testify/require"
+	"io/ioutil"
+	"log"
+	"testing"
+	"time"
 )
 
 var cert tls.Certificate
@@ -345,4 +345,33 @@ func TestSAMLCommentInjection(t *testing.T) {
 	err = xmlUnmarshalElement(el, decodedResponse)
 	require.NoError(t, err)
 	require.Equal(t, "phoebe.simon@scaleft.com.evil.com", decodedResponse.Assertions[0].Subject.NameID.Value, "The full, canonacalized NameID should be returned.")
+}
+
+func TestGenerateMetadata(t *testing.T) {
+	var err error
+	cert, err := tls.LoadX509KeyPair("./testdata/test.crt", "./testdata/test.key")
+	require.NoError(t, err, "could not load x509 key pair")
+
+	block, _ := pem.Decode([]byte(idpCert))
+
+	idpCert, err := x509.ParseCertificate(block.Bytes)
+	require.NoError(t, err, "couldn't parse idp cert pem block")
+	spUrl := "myhost-kube1-node1.test.com"
+	sp := SAMLServiceProvider{
+		AssertionConsumerServiceURL:       "https://myhost-kube1-node1.test.com:443/sp/ACS.saml2",
+		MultiAssertionConsumerServiceURLs: []string{"https://myhost-kube1-node1.test.com:443/sp/ACS.saml2", "https://myhost-kube1-node2.test.com:443/sp/ACS.saml2", "https://myhost-kube1-node3.test.com:443/sp/ACS.saml2"},
+		AudienceURI:                       spUrl,
+		ServiceProviderIssuer:             spUrl,
+		SignAuthnRequests:                 false,
+		SPKeyStore:                        dsig.TLSCertKeyStore(cert),
+		IDPCertificateStore: &dsig.MemoryX509CertificateStore{
+			Roots: []*x509.Certificate{idpCert},
+		},
+		Clock: dsig.NewFakeClockAt(time.Date(2016, 04, 28, 22, 00, 00, 00, time.UTC)),
+	}
+
+	entityDescriptor, err := sp.Metadata()
+	require.NoError(t, err)
+	require.Equal(t, entityDescriptor.EntityID, spUrl)
+	require.Equal(t, len(entityDescriptor.SPSSODescriptor.AssertionConsumerServices), 3)
 }
